@@ -4,12 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- ✏️ Update the page title to match your league name -->
-  <title> MKL Live Scores</title>
+  <title>MKL Live Scores</title>
 
-  <!-- Axios for making HTTP requests -->
   <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-
   <style>
     :root {
       --bg-color: #121212;
@@ -19,7 +16,6 @@
       --text-muted: #aaa;
     }
 
-    /* ✨ Styling for a dark theme scoreboard UI */
     * {
       margin: 0;
       padding: 0;
@@ -104,37 +100,42 @@
     }
 
     .player-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
       padding: 6px 12px;
       background-color: #333;
       border-radius: 6px;
       margin-bottom: 6px;
       font-size: 14px;
     }
+    .player-main {
+      flex: 1 1 auto;
+    }
+    .karma-rank {
+      min-width: 32px;
+      text-align: right;
+      color: var(--accent-color);
+      font-weight: bold;
+      margin-left: 12px;
+    }
   </style>
 </head>
 <body>
 
-  <!-- ✏️ Customize your scoreboard title -->
-  <h1>MKL Live Scores</h1>
+  <h1>K3L Scores</h1>
 
   <div class="loading" id="loading-indicator">Loading...</div>
   <div id="games-container"></div>
 
-  <!-- ✏️ Link back to homepage -->
   <a href="index.html" class="home-link">← Home</a>
 
   <script>
-    // === 🔧 CONFIGURATION SECTION (Update these) ===
+    // === CONFIGURATION SECTION ===
 
-    // ✏️ Link to your Google Sheets CSV for the schedule
-    const scheduleCsvUrl = `https://docs.google.com/spreadsheets/d/e/2PACX-1vQlrHOG1-sSGd2oacmYAowcclU5Plf9mL6bf1xH91d4Xu3R-vhhBXc8OS_qB85Yy8BTUBoweHWgwrIP/pub?output=csv`
-
-    // ✏️ Link to your Google Sheets CSV for rosters
-    const rosterCsvUrl = `https://docs.google.com/spreadsheets/d/e/2PACX-1vS8hDkNUZWrMGHS5JYQ4jTMVKOBSWA-Ii4I1d6d8oQre0sX_Pe9fFlPRArKzDAMQ_uhDFY8mRQgHb-S/pub?output=csv`
-    // ✏️ Your Cloudflare Worker or proxy URL that fetches user karma
-    const WORKER_URL = `https://realmkl.louisandkay526.workers.dev/`
-
-    // === 🔁 Functional logic ===
+    const scheduleCsvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQlrHOG1-sSGd2oacmYAowcclU5Plf9mL6bf1xH91d4Xu3R-vhhBXc8OS_qB85Yy8BTUBoweHWgwrIP/pub?output=csv';
+    const rosterCsvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS8hDkNUZWrMGHS5JYQ4jTMVKOBSWA-Ii4I1d6d8oQre0sX_Pe9fFlPRArKzDAMQ_uhDFY8mRQgHb-S/pub?output=csv';
+    const WORKER_URL = 'https://realmkl.louisandkay526.workers.dev';
 
     const karmaCache = new Map();
 
@@ -162,10 +163,12 @@
         const res = await fetch(`${WORKER_URL}?userId=${encodeURIComponent(userId)}`);
         const data = await res.json();
         const val = parseFloat(data?.stats?.karmaDelta || 0);
-        karmaCache.set(userId, val);
-        return val;
+        const rank = parseInt(data?.stats?.karmaDayRank || 0);
+        const result = { val, rank };
+        karmaCache.set(userId, result);
+        return result;
       } catch {
-        return 0;
+        return { val: 0, rank: 0 };
       }
     }
 
@@ -173,7 +176,6 @@
       const results = [];
       let index = 0;
       const executing = new Set();
-
       for (const item of array) {
         const p = asyncFn(item).then(res => {
           results.push(res);
@@ -195,20 +197,26 @@
         const role = (p['role'] || '').toLowerCase();
         const deduction = parseFloat(p['deductions'] || 0);
 
-        if (!userId || userId.toLowerCase() === 'not found') return `${userAt}: missing`;
+        if (!userId || userId.toLowerCase() === 'not found') {
+          return `<div class="player-row"><span class="player-main">${userAt}: missing</span></div>`;
+        }
 
-        const base = await fetchKarma(userId);
+        const { val: base, rank } = await fetchKarma(userId);
         const adjusted = base - deduction;
         const boosted = role === 'captain' ? adjusted * 1.5 : adjusted;
-
         teamTotal += boosted;
-
         const rounded = Math.round(adjusted);
-        const label = role === 'captain'
+
+        const mainText = role === 'captain'
           ? `${userAt} (c): ${rounded} → ${Math.round(boosted)}`
           : `${userAt}: ${rounded}`;
 
-        return `<div class="player-row">${label}</div>`;
+        return `
+          <div class="player-row">
+            <span class="player-main">${mainText}</span>
+            <span class="karma-rank">(${rank})</span>
+          </div>
+        `;
       }, updateProgress);
       return { rows, total: Math.round(teamTotal) };
     }
@@ -282,4 +290,3 @@
   </script>
 </body>
 </html>
-
